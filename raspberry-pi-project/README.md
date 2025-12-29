@@ -71,6 +71,8 @@ All control decisions were physically validated through immediate LED response o
 
 ### Hardware Setup
 ![Hardware Setup](screenshots/hardware.jpeg)
+
+
 Raspberry Pi connected to external sensors, ADC, and LEDs used to simulate Radio Unit power states.
 
 ---
@@ -97,6 +99,8 @@ Dynamic power scaling during normal traffic conditions.
 
 ### Predictive Boost (AI Detected Surge)
 ![Predictive Boost](screenshots/dashboard_predictive_boost.jpeg)
+
+
 Predictive AI logic detects traffic surge and proactively boosts power.
 
 
