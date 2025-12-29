@@ -1,19 +1,73 @@
-## Raspberry Pi Embedded System Project
+# Eco-RIC: O-RAN-Inspired Embedded Power Controller
 
-### Goal
-To work with a Linux-based embedded platform and perform basic system bring-up and peripheral interaction.
+## Overview
+Eco-RIC is an embedded system prototype inspired by the O-RAN architecture, designed to demonstrate autonomous and energy-aware control of a simulated 5G Radio Unit.
 
-### Hardware & Software
-- Platform: Raspberry Pi
-- OS: Linux
-- Languages: C / Python
+The system runs on a Raspberry Pi and dynamically adjusts power states based on real-time network telemetry and environmental sensor inputs, mimicking Near-Real-Time RIC behavior.
 
-### What I Implemented
-- Peripheral access and control
-- Basic data acquisition / control logic
-- Logging and validation
+---
 
-### Key Learnings
-- Embedded Linux basics
-- Hardware–software integration
-- Structured debugging
+## System Architecture
+The design follows a distributed control model:
+
+- **RIC (Controller):** Raspberry Pi 4 running a Python backend
+- **E2 Interface (Simulated):** ZeroMQ-based publisher/subscriber model
+- **Radio Unit (Simulated):** GPIO-controlled LEDs representing power states
+
+Network telemetry is generated externally and sent over ZMQ, ensuring the controller logic is decoupled from the data source.
+
+---
+
+## Hardware Components
+- Raspberry Pi 4 Model B
+- ADC0832 (Analog-to-Digital Converter)
+- LDR (Light sensor for day/night context)
+- DHT11 (Temperature & humidity monitoring)
+- LEDs:
+  - Green: Active / scaled power mode (PWM)
+  - Red: Sleep mode indicator
+
+---
+
+## Software & Technologies
+- Python (Flask backend)
+- GPIO & PWM control
+- ZeroMQ (ZMQ) for distributed messaging
+- Linear Regression (traffic trend prediction)
+- Linux-based embedded execution
+
+---
+
+## Control Logic
+The controller executes one of three power policies:
+
+- **Active Mode:** Load between 30–85%, LED brightness scales via PWM
+- **Predictive Boost:** Traffic surge detected, power forced to 100%
+- **Sleep Mode:** Load < 30%, system enters low-power state
+
+A lightweight linear regression model predicts traffic surges using recent telemetry to avoid reactive behavior.
+
+---
+
+## Debugging & Validation
+Key engineering challenges addressed:
+
+- **ADC Timing Errors:** Fixed bit-banging misalignment causing invalid readings
+- **ZMQ Socket Conflicts:** Implemented proper socket teardown to avoid port reuse issues
+- **Sensor Reliability:** Added safe-read logic for DHT11 timing instability
+
+All control decisions were physically validated through immediate LED response on hardware.
+
+---
+
+## Key Learnings
+- Embedded Linux system integration
+- GPIO, PWM, and sensor interfacing on Raspberry Pi
+- Distributed system design using publish-subscribe models
+- Translating telecom architecture concepts into embedded prototypes
+- Debugging timing-sensitive hardware and networked software
+
+---
+
+## Scope Note
+This project is a functional prototype intended to demonstrate architecture, control logic, and validation methodology rather than production-grade O-RAN deployment.
