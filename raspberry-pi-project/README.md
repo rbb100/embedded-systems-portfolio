@@ -67,6 +67,37 @@ All control decisions were physically validated through immediate LED response o
 - Translating telecom architecture concepts into embedded prototypes
 - Debugging timing-sensitive hardware and networked software
 
+## Project Demonstration
+
+### Hardware Setup
+![Hardware Setup](screenshots/hardware_setup.jpg)
+Raspberry Pi connected to external sensors, ADC, and LEDs used to simulate Radio Unit power states.
+
+---
+
+### Distributed Traffic Simulation (ZMQ)
+![ZMQ Traffic](screenshots/zmq_traffic_simulator.png)
+External traffic simulator publishing real-time network load to the RIC over ZeroMQ.
+
+---
+
+### Sleep Mode (Low Traffic)
+![Sleep Mode](screenshots/dashboard_sleep_mode.png)
+System enters low-power sleep mode when traffic load drops below threshold.
+
+---
+
+### Active Mode (Normal Traffic)
+![Active Mode](screenshots/dashboard_active_mode.png)
+Dynamic power scaling during normal traffic conditions.
+
+---
+
+### Predictive Boost (AI Detected Surge)
+![Predictive Boost](screenshots/dashboard_predictive_boost.png)
+Predictive AI logic detects traffic surge and proactively boosts power.
+
+
 ---
 
 ## Scope Note
