@@ -1,0 +1,350 @@
+# PUF-Based Edge Device Attestation System
+### Rutgers Hardware & System Security — Rahul Biju — Spring 2026
+
+---
+
+## Project Overview
+
+This project implements a Physical Unclonable Function (PUF) based device
+attestation system. A Zybo Z7 FPGA acts as the Prover (generates a unique
+hardware fingerprint), a Raspberry Pi 3 acts as the Verifier (enrolls and
+authenticates the device), and a PC-hosted HIL simulation allows full
+protocol testing without hardware.
+
+---
+
+## File Structure
+
+```
+~/puf_project/
+│
+├── virtual_puf.py          # Virtual RO-PUF model (silicon + noise simulation)
+├── hil_simulation.py       # Full HIL simulation runner
+├── hil_uart_bridge.py      # TCP socket bridge (makes virtual PUF speak Zybo protocol)
+├── pi_verifier.py          # Raspberry Pi verifier (enrollment + authentication)
+├── plot_results.py         # Plot generator from CSV logs
+│
+├── hil_output/             # Created automatically on first run
+│   ├── auth_log.csv
+│   ├── noise_sweep_log.csv
+│   ├── intra_hd_log.csv
+│   ├── inter_hd_log.csv
+│   └── plots/
+│       ├── 1_auth_log.png
+│       ├── 2_noise_sweep.png
+│       ├── 3_intra_hd.png
+│       └── 4_inter_hd.png
+│
+└── verifier_output/        # Created automatically on first run
+    ├── crps.json           # Golden challenge-response pairs
+    ├── pi_auth_log.csv
+    └── pi_stress_summary.csv
+```
+
+---
+
+## Dependencies
+
+Install on both PC (WSL/Ubuntu) and Raspberry Pi:
+
+```bash
+pip install numpy matplotlib pandas pyserial --break-system-packages
+```
+
+---
+
+## Option A — HIL Simulation (no hardware needed)
+
+Run everything on your PC. No Zybo or Pi required.
+
+### Step 1 — Basic simulation (enrollment + auth + stress + Trojan + metrics)
+
+```bash
+cd ~/puf_project
+python3 hil_simulation.py
+```
+
+**What it does:**
+- Enrolls 64 challenges against the virtual PUF
+- Runs normal authentication
+- Runs 20-trial stress test
+- Enables Trojan mode and shows BER spike
+- Computes intra-device and inter-device Hamming Distance
+- Saves all results to ./hil_output/
+
+**Expected output:**
+```
+[Verifier] Enrollment complete — 64 CRPs stored.
+[Normal]  Match Rate: 98.4%  BER: 1.56%  ✅ PASS
+Pass rate: 20/20  Avg BER: 7.2%
+[Trojan]  Match Rate: 79.7%  BER: 20.3%  ❌ FAIL  ⚠️ TROJAN DETECTED
+```
+
+---
+
+### Step 2 — Noise sweep (BER characterization)
+
+```bash
+python3 hil_simulation.py --sweep
+```
+
+Sweeps noise from 0% to 1.5% and logs BER vs noise level.
+Required before running plot_results.py (generates noise_sweep_log.csv).
+
+---
+
+### Step 3 — Generate plots
+
+```bash
+python3 plot_results.py
+```
+
+Generates 4 PNG plots in ./hil_output/plots/:
+- 1_auth_log.png      — match rate and BER per run
+- 2_noise_sweep.png   — BER vs noise level (normal vs Trojan)
+- 3_intra_hd.png      — intra-device Hamming Distance (reliability)
+- 4_inter_hd.png      — inter-device Hamming Distance (uniqueness)
+
+Copy plots to Windows Desktop from WSL:
+```bash
+cp ~/puf_project/hil_output/plots/*.png /mnt/c/Users/Rahul/Desktop/
+```
+
+---
+
+### Step 4 — HIL bridge + Pi verifier on same PC (two terminals)
+
+Simulates the Pi talking to the virtual Zybo over a local TCP socket.
+
+**Terminal 1 — start the bridge (virtual Zybo):**
+```bash
+cd ~/puf_project
+python3 hil_uart_bridge.py
+```
+
+**Terminal 2 — run the verifier:**
+```bash
+cd ~/puf_project
+python3 pi_verifier.py --hil
+```
+
+**With Trojan mode on:**
+```bash
+python3 hil_uart_bridge.py --trojan
+python3 pi_verifier.py --hil
+```
+
+**With custom noise:**
+```bash
+python3 hil_uart_bridge.py --noise 0.3
+```
+
+---
+
+## Option B — Real Hardware (Zybo + Raspberry Pi)
+
+### Requirements
+- Zybo Z7 programmed with puf_top.bit via Vivado Hardware Manager
+- PmodUSBUART plugged into Zybo JB header
+- USB cable from PmodUSBUART to Raspberry Pi
+- Pi connected to same WiFi as your laptop (for SSH)
+
+### Step 1 — SSH into the Pi
+
+```bash
+ssh pi@raspberrypi.local
+# or by IP:
+ssh pi@10.16.196.37
+# password: raspberry
+```
+
+### Step 2 — Confirm Zybo is detected
+
+```bash
+ls /dev/ttyUSB*
+# Should show: /dev/ttyUSB0
+```
+
+### Step 3 — Basic enrollment and authentication
+
+```bash
+cd ~/puf_project
+python3 pi_verifier.py --port /dev/ttyUSB0
+```
+
+**Expected output:**
+```
+[UART] Connected to /dev/ttyUSB0 @ 115200 baud
+[Verifier] Enrollment Phase
+  Progress: 16/64 challenges collected
+  Progress: 32/64 challenges collected
+  Progress: 48/64 challenges collected
+  Progress: 64/64 challenges collected
+  Done. 1s: 12  0s: 52  (ideal ~50/50)
+[CRPStore] Saved to verifier_output/crps.json
+
+[Verifier] Authentication (normal)
+  Match: 100.0%  BER: 0.00%  ✅ PASS
+```
+
+### Step 4 — Stress test (20 trials)
+
+```bash
+python3 pi_verifier.py --port /dev/ttyUSB0 --stress 20 --load-crps verifier_output/crps.json
+```
+
+Skips re-enrollment by loading saved CRPs, then runs 20 auth trials.
+
+### Step 5 — Trojan demonstration
+
+**Terminal 1 on Pi — inject Trojan:**
+```bash
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/ttyUSB0', 115200, timeout=3)
+s.write(b'TROJAN:ON\n')
+print(s.readline())
+"
+```
+
+**Terminal 2 on Pi — run authentication:**
+```bash
+python3 pi_verifier.py --port /dev/ttyUSB0 --load-crps verifier_output/crps.json
+```
+
+Watch LED1 on the Zybo turn ON when Trojan is active.
+Match rate should drop and verifier flags anomaly.
+
+**Turn Trojan off:**
+```bash
+python3 -c "
+import serial
+s = serial.Serial('/dev/ttyUSB0', 115200, timeout=3)
+s.write(b'TROJAN:OFF\n')
+print(s.readline())
+"
+```
+
+### Step 6 — Copy results back to laptop
+
+Run this from WSL on your laptop (not on the Pi):
+```bash
+scp pi@10.16.196.37:~/puf_project/verifier_output/*.csv ~/puf_project/hil_output/
+```
+
+Then generate plots:
+```bash
+cd ~/puf_project
+python3 plot_results.py
+```
+
+---
+
+## Command Reference
+
+### hil_simulation.py
+
+| Flag | Description | Default |
+|---|---|---|
+| (none) | Run full simulation | — |
+| --sweep | Run noise sweep 0–1.5% | — |
+| --noise 0.3 | Set noise level | 0.1 |
+
+### hil_uart_bridge.py
+
+| Flag | Description | Default |
+|---|---|---|
+| --port 9999 | TCP port | 9999 |
+| --noise 0.2 | Noise level | 0.1 |
+| --trojan | Start with Trojan ON | off |
+| --challenges 64 | Number of challenges | 64 |
+
+### pi_verifier.py
+
+| Flag | Description | Default |
+|---|---|---|
+| --port /dev/ttyUSB0 | Force UART port | auto-detect |
+| --hil | Force HIL socket mode | auto-detect |
+| --hil-host localhost | HIL bridge host | localhost |
+| --hil-port 9999 | HIL bridge port | 9999 |
+| --challenges 64 | Number of challenges | 64 |
+| --vote 9 | Majority vote N | 9 |
+| --threshold 0.90 | Auth pass threshold | 0.90 |
+| --stress 20 | Run N stress trials | 0 |
+| --load-crps path | Load existing CRPs | (re-enroll) |
+| --save-crps path | Where to save CRPs | verifier_output/crps.json |
+
+---
+
+## Troubleshooting
+
+**"No Prover found" error**
+- Check USB cable is connected from PmodUSBUART to Pi
+- Run `ls /dev/ttyUSB*` to confirm /dev/ttyUSB0 exists
+- Confirm Zybo is powered and bitstream is loaded (DONE LED green)
+- Press BTN0 on Zybo to reset if FSM is stuck
+
+**"pyserial not installed"**
+```bash
+pip install pyserial --break-system-packages
+```
+
+**SCP can't find Pi by hostname**
+Use IP address instead:
+```bash
+scp pi@10.16.196.37:~/puf_project/verifier_output/*.csv ~/puf_project/hil_output/
+```
+
+**plot_results.py says noise_sweep_log.csv not found**
+Run the sweep first:
+```bash
+python3 hil_simulation.py --sweep
+```
+
+**Pi SSH "remote host identification changed"**
+```bash
+ssh-keygen -R raspberrypi.local
+ssh pi@raspberrypi.local
+```
+
+**Vivado can't find Zybo**
+- Check USB cable to PROG/UART port (not USB OTG)
+- Flow → Open Hardware Manager → Auto Connect
+- If still not found, reinstall Digilent drivers
+
+---
+
+## LED Guide (Zybo Z7)
+
+| LED | Pin | Meaning |
+|---|---|---|
+| LED0 | M14 | Last CHAL response bit (flickers during enrollment) |
+| LED1 | M15 | Trojan mode active (ON = fault injected) |
+| DONE | — | Bitstream loaded successfully |
+| PGOOD | — | Board powered |
+
+---
+
+## Virtual Environment
+
+If using the myenv virtual environment:
+```bash
+source ~/myenv/bin/activate
+cd ~/puf_project
+python3 hil_simulation.py
+```
+
+---
+
+## Quick Start (5 minutes, no hardware)
+
+```bash
+cd ~/puf_project
+source ~/myenv/bin/activate
+python3 hil_simulation.py
+python3 hil_simulation.py --sweep
+python3 plot_results.py
+cp ~/puf_project/hil_output/plots/*.png /mnt/c/Users/Rahul/Desktop/
+```
+
+Done — 4 plots on your desktop.
