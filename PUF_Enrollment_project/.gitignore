@@ -1,0 +1,25 @@
+# Vivado build artifacts
+*.runs/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.jou
+*.log
+*.str
+*.pb
+*.wdb
+*.vcd
+*.bit
+*.dcp
+*.rpt
+*.rpx
+*.vdi
+*.ltx
+*.xpr
+
+# Python
+__pycache__/
+*.pyc
+hil_output/
+verifier_output/
